@@ -20,17 +20,15 @@ class LungSegmentor(object):
         self.to_tensor = transforms.ToTensor()
 
     def __call__(self, img):
-        img_cv = np.array(self.to_pil(img))
-        img_cv_ahe = np.expand_dims(rank.equalize(img_cv.squeeze(), selem=disk(40)), axis=-1)
-        img_tensor = self.to_tensor(img_cv_ahe).to(self.device)
-
-        probs = self.model(img_tensor.unsqueeze(0))[0]
+        img = img.to(self.device)
+        probs = self.model(img.unsqueeze(0))[0]
         mask = (probs > self.threshold) * 1.0
-    
-        # img_cv = np.array(self.to_pil(img))
+
+        img_cv = np.array(self.to_pil(img))
         mask_cv = mask.cpu().detach().numpy()
         kernel = np.ones((self.kernel_size, self.kernel_size))
-        mask_dilated = cv2.dilate(mask_cv.squeeze(), kernel=kernel, iterations=self.num_iter)
+        mask_dilated = cv2.dilate(
+            mask_cv.squeeze(), kernel=kernel, iterations=self.num_iter)
 
         mask_y, mask_x = np.where(mask_dilated > 0)
         start_x = max(np.min(mask_x) - self.margin, 0)
@@ -45,3 +43,16 @@ class LungSegmentor(object):
         cropped_img_resized = cv2.resize(cropped_img, dsize=self.out_size)
 
         return self.to_tensor(cropped_img_resized)
+
+
+class HistEqualizer(object):
+    def __init__(self, d=40):
+        self.d = d
+        self.to_pil = T.ToPILImage()
+        self.to_tensor = T.ToTensor()
+
+    def __call__(self, img):
+        img_cv = np.array(self.to_pil(img))
+        img_cv_ahe = np.expand_dims(rank.equalize(
+            img_cv.squeeze(), selem=disk(self.d)), axis=-1)
+        return self.to_tensor(img_cv_ahe)
